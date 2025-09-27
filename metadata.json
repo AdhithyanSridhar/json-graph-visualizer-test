@@ -1,0 +1,5 @@
+{
+  "name": "JSON Graph Visualizer - adhi",
+  "description": "An interactive web application that accepts a JSON input and visualizes its structure as a dynamic, force-directed graph. It intelligently identifies relationships between objects based on a 'sequenceNumber' property to draw directed edges, providing a clear view of data flow and hierarchy.",
+  "requestFramePermissions": []
+}

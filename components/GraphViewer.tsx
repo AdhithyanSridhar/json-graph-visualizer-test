@@ -120,7 +120,7 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             defs.append('marker')
                 .attr('id', `arrow-${type}`)
                 .attr('viewBox', '0 -5 10 10')
-                .attr('refX', 8)
+                .attr('refX', 10) // Point of the arrow which will sit on the node's edge
                 .attr('refY', 0)
                 .attr('markerWidth', 6)
                 .attr('markerHeight', 6)
@@ -131,10 +131,10 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
         });
         
         const simulation = d3.forceSimulation(mutableNodes)
-            .force("link", d3.forceLink(mutableEdges).id((d: any) => d.id).distance(150).strength(0.5))
-            .force("charge", d3.forceManyBody().strength(-800))
+            .force("link", d3.forceLink(mutableEdges).id((d: any) => d.id).distance(200).strength(0.5))
+            .force("charge", d3.forceManyBody().strength(-1500))
             .force("center", d3.forceCenter(width / 2, height / 2))
-            .force("collision", d3.forceCollide().radius((d: any) => d.radius + 10));
+            .force("collision", d3.forceCollide().radius((d: any) => d.radius + 15));
 
 
         const link = g.append("g")
@@ -152,8 +152,9 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             .data(mutableEdges.filter(d => d.label))
             .join("text")
             .attr("class", "edge-label")
+            .attr("dy", -5) // Offset from the line
             .text(d => d.label)
-            .attr("font-size", "10px")
+            .attr("font-size", "9px")
             .attr("fill", "#cbd5e1")
             .attr("text-anchor", "middle")
             .attr("paint-order", "stroke")
@@ -226,8 +227,8 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                 
                 if (dist === 0) return;
 
+                // Shorten the line to the edge of the circle
                 const targetRadius = target.radius || 0;
-                
                 const newTargetX = target.x - (dx / dist) * targetRadius;
                 const newTargetY = target.y - (dy / dist) * targetRadius;
 
@@ -245,6 +246,7 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                 const midX = (source.x + target.x) / 2;
                 const midY = (source.y + target.y) / 2;
                 
+                // Keep text upright
                 let angle = Math.atan2(target.y - source.y, target.x - source.x) * (180 / Math.PI);
                 if (angle > 90 || angle < -90) {
                     angle += 180;
@@ -314,7 +316,10 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                 // Center the block of text vertically
                 const tspans = textElement.selectAll('tspan');
                 const numTspans = tspans.size();
-                tspans.attr('y', -( (numTspans - 1) * (lineHeight-0.1) / 2) + 'em');
+                const verticalOffset = -((numTspans - 1) * (lineHeight * 12 * 0.5)) / (12 * 0.5); // Heuristic adjustment
+                
+                textElement.attr('transform', `translate(0, ${verticalOffset})`)
+
             });
         }
 

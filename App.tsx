@@ -340,13 +340,13 @@ const App: React.FC = () => {
             <div className="flex flex-col lg:flex-row flex-grow gap-6">
                 <div className="lg:w-1/3 xl:w-1/4 flex flex-col">
                     <div className="flex-grow flex flex-col bg-gray-800 rounded-lg border border-gray-700 shadow-lg">
-                        <div className="p-4 border-b border-gray-700">
+                        <div className="p-4 border-b border-gray-700 flex flex-col flex-grow">
                             <label htmlFor="json-input" className="block text-sm font-medium text-gray-300 mb-2">JSON Input</label>
                             <textarea
                                 id="json-input"
                                 value={jsonInput}
                                 onChange={(e) => setJsonInput(e.target.value)}
-                                className="w-full h-64 lg:flex-grow p-3 bg-gray-900 border border-gray-600 rounded-md text-sm text-cyan-300 font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200"
+                                className="w-full flex-grow p-3 bg-gray-900 border border-gray-600 rounded-md text-sm text-cyan-300 font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200"
                                 placeholder="Enter valid JSON here..."
                                 aria-label="JSON Input Area"
                             />

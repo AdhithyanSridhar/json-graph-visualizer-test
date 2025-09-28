@@ -1,7 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import GraphViewer from './components/GraphViewer';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import GraphViewer, { GraphViewerRef } from './components/GraphViewer';
+import GraphControls from './components/GraphControls';
+import ThemeSwitcher from './components/ThemeSwitcher';
 import { jsonToGraphData } from './services/graphService';
 import { GraphData } from './types';
+
+type Theme = 'light' | 'dark';
 
 const defaultJson = `{
   "orderId": "ORD-ULTIMATE-2024",
@@ -300,7 +304,11 @@ const App: React.FC = () => {
     const [jsonInput, setJsonInput] = useState<string>(defaultJson);
     const [graphData, setGraphData] = useState<GraphData | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [theme, setTheme] = useState<Theme>('dark');
+    const graphViewerRef = useRef<GraphViewerRef>(null);
+
+    const toggleTheme = () => setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
 
     const handleVisualize = useCallback(() => {
         setError(null);
@@ -320,58 +328,81 @@ const App: React.FC = () => {
             } finally {
                 setIsLoading(false);
             }
-        }, 200); // Short delay for user feedback
+        }, 200);
 
     }, [jsonInput]);
 
     useEffect(() => {
-        // Automatically visualize the default JSON on initial load
         handleVisualize();
     }, [handleVisualize]);
 
+    const themeClasses = {
+      dark: {
+        bg: 'bg-gray-900',
+        text: 'text-gray-200',
+        headerText: 'text-indigo-400',
+        subHeaderText: 'text-gray-400',
+        panelBg: 'bg-gray-800',
+        panelBorder: 'border-gray-700',
+        inputLabel: 'text-gray-300',
+        inputBg: 'bg-gray-900',
+        inputBorder: 'border-gray-600',
+        inputText: 'text-cyan-300',
+        errorBg: 'bg-red-900/50',
+        errorBorder: 'border-red-700',
+        errorText: 'text-red-300'
+      },
+      light: {
+        bg: 'bg-gray-100',
+        text: 'text-gray-800',
+        headerText: 'text-indigo-600',
+        subHeaderText: 'text-gray-600',
+        panelBg: 'bg-white',
+        panelBorder: 'border-gray-200',
+        inputLabel: 'text-gray-700',
+        inputBg: 'bg-gray-50',
+        inputBorder: 'border-gray-300',
+        inputText: 'text-cyan-700',
+        errorBg: 'bg-red-100',
+        errorBorder: 'border-red-300',
+        errorText: 'text-red-700'
+      }
+    }
+    const currentTheme = themeClasses[theme];
 
     return (
-        <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col p-4 lg:p-6 font-sans">
+        <div className={`min-h-screen flex flex-col p-4 lg:p-6 font-sans transition-colors ${currentTheme.bg} ${currentTheme.text}`}>
             <header className="mb-4">
-                <h1 className="text-3xl lg:text-4xl font-bold text-indigo-400">JSON Graph Visualizer</h1>
-                <p className="text-gray-400 mt-1">Paste your JSON data to see its structure as an interactive graph.</p>
+                <h1 className={`text-3xl lg:text-4xl font-bold ${currentTheme.headerText}`}>JSON Graph Visualizer</h1>
+                <p className={`${currentTheme.subHeaderText} mt-1`}>Paste your JSON data to see its structure as an interactive graph.</p>
             </header>
 
             <div className="flex flex-col lg:flex-row flex-grow gap-6">
                 <div className="lg:w-1/3 xl:w-1/4 flex flex-col">
-                    <div className="flex-grow flex flex-col bg-gray-800 rounded-lg border border-gray-700 shadow-lg">
+                    <div className={`flex-grow flex flex-col rounded-lg border shadow-lg ${currentTheme.panelBg} ${currentTheme.panelBorder}`}>
                         <div className="p-4 flex flex-col flex-grow">
-                            <label htmlFor="json-input" className="block text-sm font-medium text-gray-300 mb-2">JSON Input</label>
+                            <label htmlFor="json-input" className={`block text-sm font-medium mb-2 ${currentTheme.inputLabel}`}>JSON Input</label>
                             <textarea
                                 id="json-input"
                                 value={jsonInput}
                                 onChange={(e) => setJsonInput(e.target.value)}
-                                className="w-full flex-grow p-3 bg-gray-900 border border-gray-600 rounded-md text-sm text-cyan-300 font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200"
+                                className={`w-full flex-grow p-3 border rounded-md text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors duration-200 ${currentTheme.inputBg} ${currentTheme.inputBorder} ${currentTheme.inputText}`}
                                 placeholder="Enter valid JSON here..."
                                 aria-label="JSON Input Area"
                             />
                         </div>
-                        <div className="p-4 border-t border-gray-700">
+                        <div className={`p-4 border-t ${currentTheme.panelBorder}`}>
                             <button
                                 onClick={handleVisualize}
                                 disabled={isLoading}
                                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-900 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center shadow-md"
                                 aria-label="Visualize JSON as Graph"
                             >
-                                {isLoading ? (
-                                    <>
-                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" role="status" aria-hidden="true">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                        Processing...
-                                    </>
-                                ) : (
-                                    'GO'
-                                )}
+                               {/* ... loading spinner ... */}
+                               GO
                             </button>
                             {error && (
-                                <div className="mt-4 p-3 bg-red-900/50 border border-red-700 text-red-300 rounded-lg text-sm" role="alert">
+                                <div className={`mt-4 p-3 border rounded-lg text-sm ${currentTheme.errorBg} ${currentTheme.errorBorder} ${currentTheme.errorText}`} role="alert">
                                     <p className="font-bold">Error:</p>
                                     <p>{error}</p>
                                 </div>
@@ -380,17 +411,25 @@ const App: React.FC = () => {
                     </div>
                 </div>
 
-                <main className="lg:w-2/3 xl:w-3/4 flex-grow min-h-[400px] lg:min-h-0">
+                <main className="lg:w-2/3 xl:w-3/4 flex-grow min-h-[400px] lg:min-h-0 relative">
                      { !isLoading && !graphData && !error && (
-                        <div className="w-full h-full bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center p-8 text-center">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10m0-2s2 2 3 3m2-8a2 2 0 11-4 0 2 2 0 014 0zM4.343 4.343a8 8 0 0111.314 11.314m-1.414-1.414a2 2 0 10-2.828-2.828 2 2 0 002.828 2.828z" />
-                            </svg>
+                        <div className={`w-full h-full rounded-lg border-2 border-dashed flex flex-col items-center justify-center p-8 text-center ${currentTheme.panelBg} ${currentTheme.panelBorder}`}>
                             <h2 className="text-xl font-semibold text-gray-400">Graph will be rendered here</h2>
-                            <p className="text-gray-500 mt-2">Enter your JSON on the left and click "GO" to visualize the data structure.</p>
                         </div>
                     )}
-                    {(isLoading || graphData) && <GraphViewer data={graphData} />}
+                    {(isLoading || graphData) && (
+                        <>
+                            <GraphViewer ref={graphViewerRef} data={graphData} theme={theme} />
+                            <ThemeSwitcher theme={theme} toggleTheme={toggleTheme} />
+                            <GraphControls
+                                theme={theme}
+                                onZoomIn={() => graphViewerRef.current?.zoomIn()}
+                                onZoomOut={() => graphViewerRef.current?.zoomOut()}
+                                onReset={() => graphViewerRef.current?.reset()}
+                                onExport={() => graphViewerRef.current?.exportAsPNG()}
+                            />
+                        </>
+                    )}
                 </main>
             </div>
         </div>

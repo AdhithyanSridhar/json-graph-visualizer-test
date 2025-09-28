@@ -1,85 +1,299 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import GraphViewer from './components/GraphViewer';
 import { jsonToGraphData } from './services/graphService';
 import { GraphData } from './types';
 
 const defaultJson = `{
-  "order": {
-    "orderId": "ORD12345",
-    "status": { "statusCode": "Active", "description": "Order is currently being processed." },
-    "amendedDetails": [
-      { "newId": "L1-rev2", "oldId": "L1-rev1", "revision": 2, "date": "2023-10-27T11:00:00Z" }
-    ],
-    "customer": { "customerId": "CUST001", "name": "Jane Doe" },
-    "account": { "accountId": "ACC54321", "status": "Active" },
-    "products": [
-      {
-        "productId": "PROD-IPHONE",
-        "name": "iPhone 15 Pro",
-        "lines": [
-          {
-            "lineNumber": "L1-rev1",
-            "plan": "Unlimited Basic",
-            "status": { "statusCode": "Cancelled", "description": "Superseded by revision 2." },
-            "addressSequence": 1
-          },
-          {
-            "lineNumber": "L1-rev2",
-            "plan": "Unlimited Pro",
-            "status": { "statusCode": "Active", "description": "Current active line." },
-            "addressSequence": 1,
-            "items": [
-              {
-                "itemId": "ITEM001",
-                "type": "device",
-                "fulfillmentSequence": 1,
-                "milestones": { "applicableMilestone": "Shipped" },
-                "deviceDetails": { "imei": "123456789012345", "color": "Titanium" }
-              }
-            ],
-            "services": [
-              {
-                "serviceId": "SERV-INS",
-                "name": "Device Insurance",
-                "cancelRequestService": { "cancellable": true, "reason": "Not Required" }
-              }
-            ]
-          }
-        ]
-      }
-    ],
-    "prices": { "subtotal": 1099.00, "tax": 87.92, "total": 1186.92 },
-    "promotions": [ { "promoCode": "NEWDEVICE200", "discount": 200.00 } ],
-    "addresses": [
-      { "type": "shipping", "address": "123 Main St, Anytown, USA", "addressSequence": 1, "status": { "statusCode": "Active" } },
-      { "type": "billing", "address": "123 Main St, Anytown, USA", "addressSequence": 2, "status": { "statusCode": "Active" } }
-    ],
-    "fulfillments": [
-      {
-        "fulfillmentId": "FUL-001",
-        "sequenceNumber": 1,
-        "addressSequence": 1,
-        "milestones": { "applicableMilestone": "Shipped" },
-        "status": { "statusCode": "Processing" },
-        "shipments": [
-          {
-            "shipmentId": "SHP-001A",
-            "carrier": "FedEx",
-            "trackingNumber": "FX123456789"
-          }
-        ]
+  "orderId": "ORD-ULTIMATE-2024",
+  "revision": 3,
+  "orderDate": "2024-08-01T10:00:00Z",
+  "orderModifiedDate": "2024-08-01T11:30:00Z",
+  "orderingChannel": "WEB",
+  "originatingSystem": "ECommercePlatform",
+  "requestingSystemId": "WebApp-UI",
+  "orderContext": "NEW_CUSTOMER_SIGNUP",
+  "isCancelable": true,
+  "isAmendable": true,
+  "Customer": {
+    "globalUserId": "GUID-JSMITH-12345",
+    "firstName": "John",
+    "lastName": "Smith",
+    "emailAddress": "john.smith@example.com",
+    "phoneNumbers": ["+1-555-123-4567", "+1-555-987-6543"],
+    "creditChecks": ["PASSED_2024-08-01"]
+  },
+  "products": [
+    {
+      "id": "PROD-MOBILE-001",
+      "name": "5G Ultimate Mobile Bundle",
+      "productStatus": {
+        "code": "Active",
+        "internalState": "Provisioned",
+        "applicableMilestones": [{"id": "ACTIVATED", "name": "Service Activated"}],
+        "milestone": "ACTIVATED"
       },
-      {
-        "fulfillmentId": "FUL-002",
-        "sequenceNumber": 2,
-        "addressSequence": 2,
-        "milestones": { "applicableMilestone": "Started" },
-        "status": { "statusCode": "Pending" },
-        "shipments": []
-      }
-    ],
-    "agreements": [ { "agreementId": "AGR-001", "type": "Terms of Service", "accepted": true } ]
-  }
+      "productSequenceNumber": 1,
+      "catalogId": {},
+      "characteristics": ["HIGH_SPEED_DATA", "UNLIMITED_TALK_TEXT"],
+      "lineOfBusiness": "WIRELESS",
+      "accountSequence": 1,
+      "lines": [
+        {
+          "id": "LINE-MOBILE-PLAN-001",
+          "lineSequence": 1,
+          "name": "5G Ultimate Plan",
+          "catalogId": {},
+          "characteristics": ["PRIORITY_DATA"],
+          "lineType": "SUBSCRIPTION",
+          "productType": "SERVICE",
+          "accountSequence": 1,
+          "services": [
+            {
+              "type": "ADD_ON",
+              "serviceSequence": 1,
+              "name": "International Calling Pack",
+              "serviceType": "RECURRING",
+              "id": "SERV-INTL-CALL",
+              "catalogId": {},
+              "characteristics": ["1000_MINUTES"],
+              "sericeProductType": "VOICE_FEATURE",
+              "action": "ADD",
+              "productReferenceId": "PROD-MOBILE-001",
+              "productRelationshipReferenceId": null,
+              "productRelationshipType": "PARENT",
+              "prices": [
+                {
+                  "priceType": "MONTHLY_RECURRING",
+                  "unitPrice": 15.00,
+                  "adjustments": [],
+                  "salePrice": 15.00,
+                  "taxes": [{}],
+                  "totalTax": 1.20,
+                  "totalPriceAfterTax": 16.20,
+                  "immediatePayOption": {}
+                }
+              ]
+            }
+          ],
+          "itemSequences": ["ITEM-PHONE-001"],
+          "lineStatus": {
+            "code": "Active",
+            "clientStatus": "Active",
+            "clientSubStatus": "InGoodStanding",
+            "applicableMilestones": [{"id": "ACTIVATED", "name": "Activated"}],
+            "milestone": "ACTIVATED"
+          },
+          "type": "MOBILE",
+          "lineAction": "ADD",
+          "lineId": {"value": "LID-12345"},
+          "activationDate": "2024-08-02T00:00:00Z",
+          "billingSystem": "BillingSys-A"
+        }
+      ],
+      "items": [
+        {
+          "id": "ITEM-PHONE-001",
+          "itemSequences": ["ITEM-PHONE-001"],
+          "catalogId": "CAT-PH-XYZ",
+          "itemType": "HANDSET",
+          "isHardGood": true,
+          "lineSequence": 1,
+          "itemDescription": "Latest Smartphone Pro 256GB",
+          "itemTypeDescription": "Physical Device",
+          "fulfillmentSequence": 1,
+          "quantityOrdered": 1,
+          "quantityToShip": 1,
+          "quantityShipped": 1,
+          "quantityDelivered": 0,
+          "quantityBackordered": 0,
+          "quantityCanceled": 0,
+          "isReturnItem": false,
+          "estimatedShipDateRange": {"fromDate": "2024-08-02", "toDate": "2024-08-03"},
+          "estimatedDeliveryDateRange": {"fromDate": "2024-08-05", "toDate": "2024-08-07"},
+          "isCancelable": false,
+          "itemStatus": {
+            "code": "Shipped",
+            "applicableMilestones": [{"id": "SHIPPED", "name": "Item Shipped"}],
+            "milestone": "SHIPPED"
+          },
+          "contractType": "24_MONTH_INSTALLMENT",
+          "prices": [
+            {
+              "priceType": "ONE_TIME",
+              "unitPrice": 999.00,
+              "adjustments": [{"promotionSequence": 1, "amount": -200.00, "adjustmentType": "PROMOTION"}],
+              "salePrice": 799.00,
+              "taxes": [{}],
+              "totalTax": 63.92,
+              "totalPriceAfterTax": 862.92,
+              "immediatePayOption": {}
+            }
+          ],
+          "itemAction": "ADD",
+          "productReferenceId": "PROD-MOBILE-001",
+          "productRelationshipReferenceId": null,
+          "productRelationshipType": "PARENT",
+          "productOrderItemRelationship": [{"id": "LINE-MOBILE-PLAN-001", "type": "CONTAINS"}],
+          "deviceDetails": [{
+            "actualMaterialNumber": "HW-SP-PRO-256",
+            "manufacturerSerialNumber": "SN-ABC123XYZ",
+            "macAddress": "00:1A:2B:3C:4D:5E",
+            "ONTID": null,
+            "provisioningIndicator": "NEEDS_PROVISIONING",
+            "skuWithPrefix": "SKUP-SPPRO256-BLK",
+            "skuDescription": "Smartphone Pro 256GB Black",
+            "sku": "SPPRO256-BLK",
+            "manufacturer": "TechCorp",
+            "model": "Pro"
+          }]
+        }
+      ],
+      "substitutionGroup": "HIGH_END_DEVICES",
+      "productId": {"value": "PID-MOBILE-BUNDLE-XYZ", "type": "INTERNAL", "system": "CatalogSvc"},
+      "productOrderItemType": "BUNDLE",
+      "serviceAddressSequence": 1,
+      "networkProvider": "CarrierX",
+      "action": "ADD",
+      "prices": [
+        {
+          "priceType": "MONTHLY_RECURRING",
+          "unitPrice": 85.00,
+          "adjustments": [{"promotionSequence": 2, "amount": -10.00, "adjustmentType": "PROMOTION"}],
+          "salePrice": 75.00,
+          "taxes": [{}],
+          "totalTax": 6.00,
+          "totalPriceAfterTax": 81.00,
+          "immediatePayOption": {}
+        }
+      ],
+      "aggrements": [
+        {
+          "tcAcceptanceFlag": true,
+          "tcTimestamp": "2024-08-01T09:59:00Z",
+          "tcVersion": "v2.1",
+          "tcKey": "WIRELESS_AGREEMENT",
+          "tcConsentText": "I agree to the terms.",
+          "tcContentCategory": "LEGAL",
+          "extensions": [{"name": "IP_ADDRESS", "value": "192.168.1.1"}]
+        }
+      ],
+      "isCancelable": true,
+      "platform": "Postpaid"
+    }
+  ],
+  "fulfillments": [
+    {
+      "type": "SHIPPING",
+      "fulfillmentSequence": 1,
+      "name": "Primary Device Fulfillment",
+      "fulfillmentType": "DELIVERY",
+      "fulfillmentMode": "CARRIER",
+      "fulfillmentOrderId": {"value": "FUL-XYZ-987", "type": "EXTERNAL", "system": "WarehouseSys"},
+      "fulfillmentStatus": {"code": "IN_PROGRESS"},
+      "productSequenceNumber": ["1"],
+      "addressSequence": 1,
+      "shipments": [
+        {
+          "shipmentSequence": 1,
+          "shipmentId": "SHP-123456789",
+          "carrier": "UPS",
+          "carrierName": "United Parcel Service",
+          "trackingURL": "https://ups.com/track?tracknum=1Z...",
+          "trackingId": "1ZABC123DEF456",
+          "shippedDate": "2024-08-02T18:00:00Z",
+          "items": [
+            {"itemSeqeuence": "ITEM-PHONE-001", "serialNumber": ["SN-ABC123XYZ"], "quantity": 1}
+          ],
+          "shipmentStatus": "IN_TRANSIT"
+        }
+      ]
+    }
+  ],
+  "promotions": [
+    {
+      "promotionSequence": 1,
+      "promotionId": "PROMO-HANDSET-200",
+      "applyLevel": "ITEM",
+      "name": "$200 Off New Handset",
+      "description": "Instant rebate on new smartphone purchase.",
+      "amount": 200.00,
+      "promotionType": "DISCOUNT",
+      "effectiveDate": "2024-08-01",
+      "promotionComponentId": "COMP-HS-200",
+      "promotionEndDate": "2024-12-31",
+      "promotionApplyPolicy": "APPLY_ONCE",
+      "status": "ACTIVE"
+    },
+    {
+      "promotionSequence": 2,
+      "promotionId": "PROMO-AUTOPAY-10",
+      "applyLevel": "ACCOUNT",
+      "name": "$10 Off for Autopay",
+      "description": "Monthly discount for enabling automatic payments.",
+      "amount": 10.00,
+      "promotionType": "RECURRING_CREDIT",
+      "effectiveDate": "2024-08-01",
+      "promotionComponentId": "COMP-AP-10",
+      "promotionEndDate": null,
+      "promotionApplyPolicy": "APPLY_RECURRING",
+      "status": "ACTIVE"
+    }
+  ],
+  "addresses": [
+    {
+      "addressSequence": 1,
+      "addressClassification": "SERVICE_BILLING",
+      "name": "John Smith's Residence",
+      "address1": "123 Main Street",
+      "city": "Anytown",
+      "state": "CA",
+      "zip": "12345",
+      "zipExtension": "6789",
+      "country": "USA",
+      "addressId": "ADDR-98765"
+    }
+  ],
+  "accounts": [
+    {
+      "accountSequence": 1,
+      "accountNumber": "ACCT-9876543210",
+      "name": "J. Smith Wireless",
+      "accountType": "CONSUMER",
+      "accountSubType": "POSTPAID",
+      "autoPay": true,
+      "firstName": "John",
+      "lastName": "Smith",
+      "emailAddress": "john.smith@example.com",
+      "billingAddressSequence": 1,
+      "serviceAddressSequence": 1,
+      "billingCycleDay": 15,
+      "phoneNumbers": [{"phoneType": "MOBILE", "phoneNumber": "+1-555-123-4567", "isPrimaryContact": true}],
+      "billingDeliveryPreference": "EMAIL"
+    }
+  ],
+  "eventLog": [
+    {
+      "eventId": "EVT-ORDER-CREATE-001",
+      "lineOfBusiness": ["WIRELESS"],
+      "orchestrator": "OrderOrchestrator",
+      "requestingSystemId": "WebApp-UI",
+      "revision": 1,
+      "traceId": "TRACE-ABC-123",
+      "ogEventmSTimeStamp": "1690884000000"
+    }
+  ],
+  "orderTotalPrices": [
+    {
+      "priceType": "TOTALS",
+      "unitPrice": 1099.00,
+      "adjustments": [{"adjustmentType": "PROMOTION", "amount": -210.00}],
+      "salePrice": 889.00,
+      "totalTax": 71.12,
+      "totalPriceAfterTax": 960.12,
+      "immediatePayOption": {"payImmediately": true, "payOption": "CREDIT_CARD"}
+    }
+  ],
+  "pointOfNoReturnDate": "2024-08-02T17:00:00Z"
 }`;
 
 const App: React.FC = () => {
@@ -110,6 +324,12 @@ const App: React.FC = () => {
 
     }, [jsonInput]);
 
+    useEffect(() => {
+        // Automatically visualize the default JSON on initial load
+        handleVisualize();
+    }, [handleVisualize]);
+
+
     return (
         <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col p-4 lg:p-6 font-sans">
             <header className="mb-4">
@@ -118,7 +338,7 @@ const App: React.FC = () => {
             </header>
 
             <div className="flex flex-col lg:flex-row flex-grow gap-6">
-                <div className="lg:w-1/4 flex flex-col">
+                <div className="lg:w-1/3 xl:w-1/4 flex flex-col">
                     <div className="flex-grow flex flex-col bg-gray-800 rounded-lg border border-gray-700 shadow-lg">
                         <div className="p-4 border-b border-gray-700">
                             <label htmlFor="json-input" className="block text-sm font-medium text-gray-300 mb-2">JSON Input</label>
@@ -160,8 +380,8 @@ const App: React.FC = () => {
                     </div>
                 </div>
 
-                <main className="lg:w-3/4 flex-grow min-h-[400px] lg:min-h-0">
-                    { !isLoading && !graphData && !error && (
+                <main className="lg:w-2/3 xl:w-3/4 flex-grow min-h-[400px] lg:min-h-0">
+                     { !isLoading && !graphData && !error && (
                         <div className="w-full h-full bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center p-8 text-center">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-600 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10m0-2s2 2 3 3m2-8a2 2 0 11-4 0 2 2 0 014 0zM4.343 4.343a8 8 0 0111.314 11.314m-1.414-1.414a2 2 0 10-2.828-2.828 2 2 0 002.828 2.828z" />

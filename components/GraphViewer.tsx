@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
-// FIX: Import d3 to use it as a module instead of a UMD global.
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import { GraphData, Node as NodeType, Edge as EdgeType } from '../types';
 
@@ -69,13 +68,13 @@ const NODE_COLORS: Record<string, string> = {
     address: '#d946ef', // fuchsia-500
     account: '#10b981', // emerald-500
     eventLog: '#64748b', // slate-500
-    status: '#475569', // slate-600
+    status: '#eab308', // yellow-500
 };
 
 const STATUS_BORDER_COLORS: Record<string, string> = {
     active: '#22c55e', // green-500
     shipped: '#3b82f6', // blue-500
-    in_progress: '#eab308', // yellow-500
+    in_progress: '#f59e0b', // amber-500
     in_transit: '#a855f7', // purple-500
     default: 'transparent'
 };
@@ -92,7 +91,7 @@ const Legend: React.FC<{ theme: Theme }> = ({ theme }) => (
     <div className="absolute top-2 left-2 p-3 rounded-lg border text-xs backdrop-blur-sm max-w-xs transition-colors" style={{ backgroundColor: themes[theme].bgLegend, borderColor: themes[theme].borderLegend, color: themes[theme].text }}>
         <h4 className="font-bold mb-2">Node Types</h4>
         <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-            {Object.entries(NODE_COLORS).filter(([key]) => !['default', 'object', 'array', 'status'].includes(key)).map(([type, color]) => (
+            {Object.entries(NODE_COLORS).filter(([key]) => !['default', 'object', 'array'].includes(key)).map(([type, color]) => (
                 <div key={type} className="flex items-center">
                     <div className="w-3 h-3 rounded-full mr-2" style={{ backgroundColor: color }}></div>
                     <span className="capitalize">{type}</span>
@@ -119,7 +118,45 @@ const GraphViewer = forwardRef<GraphViewerRef, GraphViewerProps>(({ data, theme 
     const [isMounted, setIsMounted] = useState(false);
     const [tooltip, setTooltip] = useState<{ visible: boolean; content: string; x: number; y: number; }>({ visible: false, content: '', x: 0, y: 0 });
     const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+    const simulationRef = useRef<d3.Simulation<NodeType, EdgeType>>();
 
+    const fitToView = useCallback(() => {
+        const svg = d3.select(svgRef.current);
+        const g = svg.select<SVGGElement>('g.main-group');
+        const zoom = zoomRef.current;
+        if (!svg.node() || g.empty() || !zoom) return;
+
+        const nodes = g.selectAll<SVGGElement, NodeType>('g.node-group > g').data() as (NodeType & { radius?: number, x:number, y:number })[];
+        if (nodes.length === 0) return;
+        
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        nodes.forEach(node => {
+            const radius = node.radius || 0;
+            if (node.x - radius < minX) minX = node.x - radius;
+            if (node.x + radius > maxX) maxX = node.x + radius;
+            if (node.y - radius < minY) minY = node.y - radius;
+            if (node.y + radius > maxY) maxY = node.y + radius;
+        });
+
+        const graphWidth = maxX - minX;
+        const graphHeight = maxY - minY;
+        const svgNode = svg.node();
+        if (!svgNode) return;
+
+        const { width, height } = svgNode.getBoundingClientRect();
+
+        if (graphWidth === 0 || graphHeight === 0) return;
+
+        const padding = 80;
+        const scale = Math.min((width - padding) / graphWidth, (height - padding) / graphHeight, 1.5);
+
+        const translateX = (width / 2) - (scale * (minX + maxX) / 2);
+        const translateY = (height / 2) - (scale * (minY + maxY) / 2);
+        
+        const transform = d3.zoomIdentity.translate(translateX, translateY).scale(scale);
+        svg.transition().duration(750).call(zoom.transform, transform);
+    }, []);
+    
     useImperativeHandle(ref, () => ({
         zoomIn() {
             const svg = d3.select(svgRef.current);
@@ -134,74 +171,38 @@ const GraphViewer = forwardRef<GraphViewerRef, GraphViewerProps>(({ data, theme 
             }
         },
         reset() {
-            const svg = d3.select(svgRef.current);
-            if (zoomRef.current) {
-                const width = svg.node()?.getBoundingClientRect().width || 800;
-                const height = svg.node()?.getBoundingClientRect().height || 600;
-                const initialTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(0.5); // Example reset
-                 svg.transition().duration(750).call(zoomRef.current.transform, d3.zoomIdentity);
-            }
+            fitToView();
         },
         exportAsPNG() {
             const svgElement = svgRef.current;
             if (!svgElement) return;
-
-            // Temporarily remove transform to get the full view
-            const g = d3.select(svgElement).select('g');
-            const originalTransform = g.attr('transform');
-            
-            const nodes = (d3.select(svgElement).selectAll('g.node-group g').data() as (NodeType & {x:number, y:number})[]);
-            if (nodes.length === 0) return;
-
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            nodes.forEach(d => {
-                const radius = (d as any).radius || 0;
-                if (d.x - radius < minX) minX = d.x - radius;
-                if (d.x + radius > maxX) maxX = d.x + radius;
-                if (d.y - radius < minY) minY = d.y - radius;
-                if (d.y + radius > maxY) maxY = d.y + radius;
-            });
-            
-            const graphWidth = maxX - minX;
-            const graphHeight = maxY - minY;
-            const padding = 50;
-
-            g.attr('transform', `translate(${-minX + padding}, ${-minY + padding})`);
-            
-            const effectiveWidth = graphWidth + padding * 2;
-            const effectiveHeight = graphHeight + padding * 2;
-
+    
+            const { width, height } = svgElement.getBoundingClientRect();
+    
             const svgString = new XMLSerializer().serializeToString(svgElement);
-            
-            g.attr('transform', originalTransform);
-            
-            const svgWithBg = `<svg xmlns="http://www.w3.org/2000/svg" width="${effectiveWidth}" height="${effectiveHeight}">
-                <style>
-                    .edge-label { font-family: sans-serif; }
-                    text { font-family: sans-serif; }
-                </style>
-                <rect width="100%" height="100%" fill="${themes[theme].bg}" />
-                ${svgString}
-            </svg>`;
-
-            const blob = new Blob([svgWithBg], { type: 'image/svg+xml;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+    
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                canvas.width = effectiveWidth;
-                canvas.height = effectiveHeight;
+                canvas.width = width * 2; // for higher resolution
+                canvas.height = height * 2;
                 const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0);
-                    const pngUrl = canvas.toDataURL('image/png');
-                    const a = document.createElement('a');
-                    a.href = pngUrl;
-                    a.download = 'graph.png';
-                    a.click();
-                }
+                if (!ctx) return;
+    
+                ctx.fillStyle = themes[theme].bg;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.scale(2,2);
+                ctx.drawImage(img, 0, 0, width, height);
                 URL.revokeObjectURL(url);
+    
+                const pngUrl = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.download = 'graph.png';
+                link.href = pngUrl;
+                link.click();
             };
             img.src = url;
         }
@@ -209,6 +210,33 @@ const GraphViewer = forwardRef<GraphViewerRef, GraphViewerProps>(({ data, theme 
 
     useEffect(() => {
         setIsMounted(true);
+        
+        // FIX: The ResizeObserver callback expects arguments. While JavaScript often allows omitting them,
+        // some TypeScript configurations can be strict. The error "Expected 1 arguments, but got 0" can
+        // be misleadingly reported on a different line when dealing with callback signature mismatches.
+        // Adding the `entries` parameter to satisfy the expected signature.
+        const resizeObserver = new ResizeObserver((entries) => {
+            window.requestAnimationFrame(() => {
+                const svg = d3.select(svgRef.current);
+                const simulation = simulationRef.current;
+                if (svg.node() && simulation) {
+                    const { width, height } = svg.node()!.getBoundingClientRect();
+                    simulation.force('x', d3.forceX(width / 2).strength(0.1));
+                    simulation.force('y', d3.forceY(height / 2).strength(0.1));
+                    simulation.alpha(0.3).restart();
+                }
+            });
+        });
+
+        if (svgRef.current) {
+            resizeObserver.observe(svgRef.current);
+        }
+
+        return () => {
+            if (svgRef.current) {
+                resizeObserver.unobserve(svgRef.current);
+            }
+        };
     }, []);
 
     useEffect(() => {
@@ -216,71 +244,11 @@ const GraphViewer = forwardRef<GraphViewerRef, GraphViewerProps>(({ data, theme 
         
         const EDGE_STYLES = getEdgeStyles(theme);
         const currentTheme = themes[theme];
-
-        const drag = (simulation: d3.Simulation<NodeType, undefined>) => {
-            function dragstarted(event: any, d: any) {
-                if (!event.active) simulation.alphaTarget(0.3).restart();
-                d.fx = d.x;
-                d.fy = d.y;
-            }
-
-            function dragged(event: any, d: any) {
-                d.fx = event.x;
-                d.fy = event.y;
-            }
-
-            function dragended(event: any, d: any) {
-                if (!event.active) simulation.alphaTarget(0);
-                d.fx = null;
-                d.fy = null;
-            }
-
-            return d3.drag<any, NodeType>()
-                .on("start", dragstarted)
-                .on("drag", dragged)
-                .on("end", dragended);
-        };
-        
-        // FIX: This function has been rewritten to fix a compile error and improve text wrapping and centering.
-        const wrapText = (selection: d3.Selection<any, unknown, null, undefined>, text: string, width: number) => {
-            selection.each(function(this: SVGTextElement) {
-                const textElement = d3.select(this);
-                const words = text.split(/\s+/).reverse();
-                let word: string | undefined;
-                let line: string[] = [];
-                let lineNumber = 0;
-                const lineHeight = 1.1; // ems
-                const y = textElement.attr("y") || 0;
-                const dy = parseFloat(textElement.attr("dy") || "0");
-
-                textElement.text(null);
-                
-                let tspan = textElement.append("tspan").attr("x", 0).attr("y", y).attr("dy", `${dy}em`);
-
-                while ((word = words.pop())) {
-                    line.push(word);
-                    tspan.text(line.join(" "));
-                    if (tspan.node()!.getComputedTextLength() > width && line.length > 1) {
-                        line.pop();
-                        tspan.text(line.join(" "));
-                        line = [word];
-                        tspan = textElement.append("tspan").attr("x", 0).attr("y", y).attr("dy", `${++lineNumber * lineHeight + dy}em`).text(word);
-                    }
-                }
-                const finalLineCount = textElement.selectAll('tspan').size();
-                const fontSize = 12; // From nodeText style
-                const totalTextHeight = (finalLineCount - 1) * lineHeight * fontSize;
-                const newStartY = -totalTextHeight / 2;
-
-                textElement.selectAll('tspan').attr('y', newStartY);
-            });
-        };
         
         const { nodes, edges } = data;
         
         const mutableNodes: (NodeType & { radius?: number })[] = nodes.map(n => ({...n}));
-        const mutableEdges = edges.map(e => ({...e}));
-
+        const mutableEdges: EdgeType[] = edges.map(e => ({...e}));
 
         mutableNodes.forEach((node) => {
             node.radius = Math.max(45 - (node.depth || 0) * 5, 15);
@@ -289,43 +257,46 @@ const GraphViewer = forwardRef<GraphViewerRef, GraphViewerProps>(({ data, theme 
         const svg = d3.select(svgRef.current);
         svg.selectAll("*").remove(); 
 
-        const width = svg.node()?.getBoundingClientRect().width || 800;
-        const height = svg.node()?.getBoundingClientRect().height || 600;
+        const { width, height } = svg.node()!.getBoundingClientRect();
 
         const g = svg.append("g").attr('class', 'main-group');
 
         const defs = g.append('defs');
         Object.entries(EDGE_STYLES).forEach(([type, style]) => {
             defs.append('marker')
-                .attr('id', `arrow-${type}`)
+                .attr('id', `arrow-${type}-${theme}`)
                 .attr('viewBox', '0 -5 10 10')
                 .attr('refX', 10)
                 .attr('refY', 0)
                 .attr('markerWidth', 6)
                 .attr('markerHeight', 6)
-                .attr('orient', 'auto')
+                .attr('orient', 'auto-start-reverse')
                 .append('path')
                 .attr('d', 'M0,-5L10,0L0,5')
                 .attr('fill', style.color);
         });
         
-        const simulation = d3.forceSimulation(mutableNodes as d3.SimulationNodeDatum[])
-            .force("link", d3.forceLink(mutableEdges).id((d: any) => d.id).distance(250).strength(0.5))
+        const simulation = d3.forceSimulation(mutableNodes)
+            .force("link", d3.forceLink<NodeType, EdgeType>(mutableEdges).id(d => d.id).distance(250).strength(0.5))
             .force("charge", d3.forceManyBody().strength(-2000))
-            .force("collision", d3.forceCollide().radius((d: any) => d.radius + 40))
+            .force("collision", d3.forceCollide().radius(d => (d as any).radius + 40))
             .force("x", d3.forceX(width / 2).strength(0.1))
             .force("y", d3.forceY(height / 2).strength(0.1));
+        
+        simulationRef.current = simulation;
 
         const link = g.append("g")
             .attr("class", "links")
+            .attr("fill", "none")
             .attr("stroke-opacity", 0.8)
-            .selectAll("line")
+            .selectAll("path")
             .data(mutableEdges)
-            .join("line")
+            .join("path")
             .attr("stroke", d => EDGE_STYLES[d.type]?.color || '#999')
             .attr("stroke-width", d => EDGE_STYLES[d.type]?.strokeWidth || 1.5)
             .attr("stroke-dasharray", d => EDGE_STYLES[d.type]?.dash)
-            .attr('marker-end', d => `url(#arrow-${d.type})`);
+            .attr('marker-end', d => `url(#arrow-${d.type}-${theme})`)
+            .attr('id', (d, i) => `edgepath${i}`);
         
         const edgeLabels = g.append("g")
             .attr("class", "edge-labels")
@@ -334,195 +305,167 @@ const GraphViewer = forwardRef<GraphViewerRef, GraphViewerProps>(({ data, theme 
             .join("text")
             .attr("class", "edge-label")
             .attr("dy", -5)
-            .text(d => d.label!)
             .attr("font-size", "9px")
             .attr("fill", currentTheme.edgeLabelFill)
             .attr("text-anchor", "middle")
             .attr("paint-order", "stroke")
             .attr("stroke", currentTheme.edgeLabelStroke)
             .attr("stroke-width", 2)
-            .attr("stroke-linejoin", "round");
+            .attr("stroke-linejoin", "round")
+            .append("textPath")
+            .attr("startOffset", "50%")
+            .attr("xlink:href", (d, i) => `#edgepath${i}`)
+            .text(d => d.label!);
             
+        const drag = (simulation: d3.Simulation<NodeType, EdgeType>) => {
+            function dragstarted(event: any, d: NodeType) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+            function dragged(event: any, d: NodeType) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+            function dragended(event: any, d: NodeType) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+            return d3.drag<SVGGElement, NodeType>().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+        };
+
         const node = g.append("g")
             .attr("class", "node-group")
             .selectAll("g")
             .data(mutableNodes)
             .join("g")
-            .call(drag(simulation as d3.Simulation<NodeType, undefined>));
-        
-        const linkedByIndex: Record<string, boolean> = {};
+            .call(drag(simulation));
+
+        const linkedByIndex = new Map();
         mutableEdges.forEach(d => {
-            const sourceId = typeof d.source === 'object' ? (d.source as NodeType).id : d.source;
-            const targetId = typeof d.target === 'object' ? (d.target as NodeType).id : d.target;
-            linkedByIndex[`${sourceId},${targetId}`] = true;
+            const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+            const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+            linkedByIndex.set(`${sourceId},${targetId}`, 1);
         });
+        
+        const isConnected = (a: NodeType, b: NodeType) => linkedByIndex.has(`${a.id},${b.id}`) || linkedByIndex.has(`${b.id},${a.id}`) || a.id === b.id;
 
-        function areNodesConnected(a: NodeType, b: NodeType) {
-            return linkedByIndex[`${a.id},${b.id}`] || linkedByIndex[`${b.id},${a.id}`] || a.id === b.id;
-        }
-
-        node.on('mouseover', (event: MouseEvent, d: NodeType) => {
-            const [x, y] = d3.pointer(event, document.body);
-            setTooltip({
-                visible: true,
-                content: JSON.stringify(d.data, null, 2),
-                x: x,
-                y: y,
-            });
-
-            node.style('opacity', (o: any) => areNodesConnected(d, o) ? 1 : 0.2);
-            link.style('opacity', (o: any) => (o.source.id === d.id || o.target.id === d.id) ? 1 : 0.2);
-            edgeLabels.style('opacity', (o: any) => (o.source.id === d.id || o.target.id === d.id) ? 1 : 0.2);
-        })
-        .on('mousemove', (event: MouseEvent) => {
-            const [x, y] = d3.pointer(event, document.body);
-            setTooltip(prev => ({ ...prev, x: x, y: y }));
-        })
-        .on('mouseout', () => {
-            setTooltip({ visible: false, content: '', x: 0, y: 0 });
+        node.on('mouseover', function (event: MouseEvent, d: NodeType) {
+            node.style('opacity', o => isConnected(d, o) ? 1 : 0.2);
+            link.style('opacity', o => (o.source as NodeType).id === d.id || (o.target as NodeType).id === d.id ? 1 : 0.2);
+            edgeLabels.selectAll('textPath').style('opacity', o => ((o as EdgeType).source as NodeType).id === d.id || ((o as EdgeType).target as NodeType).id === d.id ? 1 : 0.2);
+            
+            const content = JSON.stringify(d.data, null, 2);
+            setTooltip({ visible: true, content, x: event.pageX + 15, y: event.pageY + 15 });
+        });
+    
+        node.on('mousemove', function (event: MouseEvent) {
+            setTooltip(prev => ({ ...prev, x: event.pageX + 15, y: event.pageY + 15 }));
+        });
+    
+        node.on('mouseout', function () {
             node.style('opacity', 1);
-            link.style('opacity', 0.8);
-            edgeLabels.style('opacity', 1);
+            link.style('opacity', 1);
+            edgeLabels.selectAll('textPath').style('opacity', 1);
+            setTooltip({ visible: false, content: '', x: 0, y: 0 });
         });
 
         const getNodeStatusColor = (d: NodeType) => {
-            const statusSources = [d.status, d.data?.status, d.data?.itemStatus, d.data?.productStatus, d.data?.fulfillmentStatus];
-            for (const statusObj of statusSources) {
-                if (statusObj?.code) {
-                    const code = statusObj.code.toLowerCase().replace(/\s/g, '_');
-                    if (STATUS_BORDER_COLORS[code]) return STATUS_BORDER_COLORS[code];
-                }
+            if (d.type === 'status' && d.data) {
+                const statusText = (d.data.milestone || d.data.code || d.data.status || '').toLowerCase();
+                if (statusText.includes('active')) return STATUS_BORDER_COLORS.active;
+                if (statusText.includes('shipped')) return STATUS_BORDER_COLORS.shipped;
+                if (statusText.includes('progress')) return STATUS_BORDER_COLORS.in_progress;
+                if (statusText.includes('transit')) return STATUS_BORDER_COLORS.in_transit;
             }
             return STATUS_BORDER_COLORS.default;
         };
 
         node.append("circle")
-            .attr("r", (d: any) => d.radius)
-            .attr("fill", (d: any) => NODE_COLORS[d.type] || NODE_COLORS.default)
-            .attr("stroke", (d: any) => getNodeStatusColor(d))
+            .attr("r", d => (d as any).radius)
+            .attr("fill", d => NODE_COLORS[d.type] || NODE_COLORS.default)
+            .attr("stroke", d => getNodeStatusColor(d))
             .attr("stroke-width", 3);
 
+        const wrapText = (selection: d3.Selection<SVGTextElement, unknown, null, undefined>, text: string, width: number) => {
+            selection.each(function () {
+                const textElement = d3.select(this);
+                const words = text.split(/\s+/).reverse();
+                let word;
+                let line: string[] = [];
+                let lineNumber = 0;
+                const lineHeight = 1.1; // ems
+                const y = textElement.attr("y") || 0;
+                const dy = parseFloat(textElement.attr("dy") || "0");
+                let tspan = textElement.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+        
+                while ((word = words.pop())) {
+                    line.push(word);
+                    tspan.text(line.join(" "));
+                    if ((tspan.node() as SVGTextContentElement).getComputedTextLength() > width) {
+                        line.pop();
+                        tspan.text(line.join(" "));
+                        line = [word];
+                        tspan = textElement.append("tspan").attr("x", 0).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+                    }
+                }
+                
+                const tspans = textElement.selectAll('tspan');
+                const numTspans = tspans.size();
+                if (numTspans > 1) {
+                    const totalHeight = (numTspans - 1) * lineHeight;
+                    tspans.each(function(d, i){
+                        d3.select(this).attr('y', - (totalHeight / 2) * 10 + (i * lineHeight * 10)); // Using pixels for offset
+                    });
+                }
+            });
+        };
+
         const nodeText = node.append("text")
-            .attr("fill", currentTheme.nodeText)
-            .attr("font-size", "12px")
+            .attr("dy", "0.35em")
             .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("fill", currentTheme.nodeText)
             .attr("paint-order", "stroke")
             .attr("stroke", currentTheme.nodeStroke)
-            .attr("stroke-width", 3)
+            .attr("stroke-width", 2)
             .attr("stroke-linejoin", "round");
-        
-        nodeText.each(function(d: any) {
-            wrapText(d3.select(this), d.label, d.radius * 2 * 0.8);
+            
+        nodeText.each(function(d) {
+            wrapText(d3.select(this), d.label, (d as any).radius * 2 * 0.8);
         });
 
         simulation.on("tick", () => {
-            link
-                .attr("x1", (d: any) => d.source.x)
-                .attr("y1", (d: any) => d.source.y)
-                .attr("x2", (d: any) => {
-                    if (!d.target.x || !d.source.x) return 0;
-                    const targetNode = d.target;
-                    const dx = targetNode.x - d.source.x;
-                    const dy = targetNode.y - d.source.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance === 0) return d.source.x;
-                    const ratio = (distance - (targetNode.radius || 15) - 3) / distance;
-                    return d.source.x + dx * ratio;
-                })
-                .attr("y2", (d: any) => {
-                     if (!d.target.y || !d.source.y) return 0;
-                    const targetNode = d.target;
-                    const dx = targetNode.x - d.source.x;
-                    const dy = targetNode.y - d.source.y;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
-                    if (distance === 0) return d.source.y;
-                    const ratio = (distance - (targetNode.radius || 15) - 3) / distance;
-                    return d.source.y + dy * ratio;
-                });
+            link.attr("d", d => {
+                const source = d.source as any;
+                const target = d.target as any;
+                const dx = target.x - source.x;
+                const dy = target.y - source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy);
+                
+                const targetRadius = target.radius || 15;
+                const ratio = dr > 0 ? (dr - targetRadius - 3) / dr : 0;
+                const endX = source.x + dx * ratio;
+                const endY = source.y + dy * ratio;
 
-            node.attr("transform", (d: any) => `translate(${d.x || 0},${d.y || 0})`);
+                return `M${source.x},${source.y}A${dr},${dr} 0 0,1 ${endX},${endY}`;
+            });
 
-            edgeLabels
-                .attr("x", (d: any) => (d.source.x + d.target.x) / 2)
-                .attr("y", (d: any) => (d.source.y + d.target.y) / 2)
-                .attr("transform", (d: any) => {
-                    if (!d.target.x || !d.source.x) return '';
-                    const angle = Math.atan2(d.target.y - d.source.y, d.target.x - d.source.x) * (180 / Math.PI);
-                    const centerX = (d.source.x + d.target.x) / 2;
-                    const centerY = (d.source.y + d.target.y) / 2;
-                    return `rotate(${angle > 90 || angle < -90 ? angle + 180 : angle}, ${centerX}, ${centerY})`;
-                });
+            node.attr("transform", d => `translate(${d.x || 0},${d.y || 0})`);
         });
 
-        const zoom = d3.zoom<SVGSVGElement, unknown>().on("zoom", (event: any) => {
+        const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.1, 4]).on("zoom", (event) => {
             g.attr("transform", event.transform);
         });
-
-        simulation.on("end", () => {
-            if (mutableNodes.length === 0) return;
         
-            let minX = Infinity;
-            let minY = Infinity;
-            let maxX = -Infinity;
-            let maxY = -Infinity;
-        
-            mutableNodes.forEach((node: any) => {
-                const radius = node.radius || 0;
-                if (node.x - radius < minX) minX = node.x - radius;
-                if (node.x + radius > maxX) maxX = node.x + radius;
-                if (node.y - radius < minY) minY = node.y - radius;
-                if (node.y + radius > maxY) maxY = node.y + radius;
-            });
-        
-            const graphWidth = maxX - minX;
-            const graphHeight = maxY - minY;
-        
-            if (graphWidth === 0 || graphHeight === 0) return;
-        
-            const padding = 80;
-            const scale = Math.min(
-                (width - padding) / graphWidth,
-                (height - padding) / graphHeight,
-                1 
-            );
-        
-            const translateX = (width / 2) - (scale * (minX + maxX) / 2);
-            const translateY = (height / 2) - (scale * (minY + maxY) / 2);
-        
-            const transform = d3.zoomIdentity.translate(translateX, translateY).scale(scale);
-            
-            svg.transition().duration(750).call(zoom.transform, transform);
-        });
-        
+        simulation.on("end", fitToView);
         svg.call(zoom);
         zoomRef.current = zoom; 
 
-    }, [data, isMounted, theme]);
+    }, [data, isMounted, theme, fitToView]);
 
     const currentTheme = themes[theme];
-
-    const tooltipRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (tooltip.visible && tooltipRef.current) {
-            const el = tooltipRef.current;
-            const rect = el.getBoundingClientRect();
-            const bodyWidth = document.body.clientWidth;
-            const bodyHeight = document.body.clientHeight;
-            
-            let left = tooltip.x + 10;
-            let top = tooltip.y + 10;
-            
-            if (left + rect.width > bodyWidth) {
-                left = tooltip.x - rect.width - 10;
-            }
-            if (top + rect.height > bodyHeight) {
-                top = tooltip.y - rect.height - 10;
-            }
-            
-            el.style.transform = `translate(${left}px, ${top}px)`;
-        }
-    }, [tooltip]);
-
 
     return (
         <div className="relative w-full h-full rounded-lg border overflow-hidden transition-colors" style={{ backgroundColor: currentTheme.bg, borderColor: currentTheme.borderLegend }}>
@@ -530,19 +473,18 @@ const GraphViewer = forwardRef<GraphViewerRef, GraphViewerProps>(({ data, theme 
             <Legend theme={theme}/>
             {tooltip.visible && (
                 <div
-                    ref={tooltipRef}
-                    className="absolute p-2 text-sm border rounded-md shadow-lg pointer-events-none max-w-sm max-h-80 overflow-auto backdrop-blur-sm transition-opacity"
-                    style={{ 
-                        top: 0,
-                        left: 0,
-                        transform: `translate(${tooltip.x + 10}px, ${tooltip.y + 10}px)`,
+                    className="absolute p-3 rounded-md border shadow-lg text-xs backdrop-blur-sm max-w-sm transition-colors"
+                    style={{
+                        top: tooltip.y,
+                        left: tooltip.x,
                         backgroundColor: currentTheme.bgTooltip,
+                        borderColor: currentTheme.borderTooltip,
                         color: currentTheme.textTooltip,
-                        borderColor: currentTheme.borderTooltip
+                        pointerEvents: 'none',
+                        transform: 'translate(-50%, -100%)', // Adjust to appear above cursor
                     }}
-                    role="tooltip"
                 >
-                    <pre className="font-mono whitespace-pre-wrap">{tooltip.content}</pre>
+                    <pre><code className="font-mono">{tooltip.content}</code></pre>
                 </div>
             )}
         </div>

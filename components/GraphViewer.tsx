@@ -96,10 +96,15 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
         }
 
         const { nodes, edges } = data;
+        
+        // Ensure data is mutable for d3 simulation
+        const mutableNodes = nodes.map(n => ({...n}));
+        const mutableEdges = edges.map(e => ({...e}));
+
 
         // Add radius to nodes based on depth for sizing
-        nodes.forEach((node: any) => {
-            node.radius = Math.max(22 - (node.depth || 0) * 3, 8);
+        mutableNodes.forEach((node: any) => {
+            node.radius = Math.max(45 - (node.depth || 0) * 5, 15);
         });
 
         const svg = d3.select(svgRef.current);
@@ -115,7 +120,7 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             defs.append('marker')
                 .attr('id', `arrow-${type}`)
                 .attr('viewBox', '0 -5 10 10')
-                .attr('refX', 32) // Adjusted for larger nodes
+                .attr('refX', 8)
                 .attr('refY', 0)
                 .attr('markerWidth', 6)
                 .attr('markerHeight', 6)
@@ -125,26 +130,40 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                 .attr('fill', style.color);
         });
         
-        const simulation = d3.forceSimulation(nodes)
-            .force("link", d3.forceLink(edges).id((d: any) => d.id).distance((d: any) => (d.source.radius || 8) + (d.target.radius || 8) + 80).strength(0.4))
-            .force("charge", d3.forceManyBody().strength(-600))
+        const simulation = d3.forceSimulation(mutableNodes)
+            .force("link", d3.forceLink(mutableEdges).id((d: any) => d.id).distance(150).strength(0.5))
+            .force("charge", d3.forceManyBody().strength(-800))
             .force("center", d3.forceCenter(width / 2, height / 2))
-            .force("x", d3.forceX().strength(0.1))
-            .force("y", d3.forceY().strength(0.1));
+            .force("collision", d3.forceCollide().radius((d: any) => d.radius + 10));
+
 
         const link = g.append("g")
             .attr("stroke-opacity", 0.8)
             .selectAll("line")
-            .data(edges)
+            .data(mutableEdges)
             .join("line")
             .attr("stroke", d => EDGE_STYLES[d.type]?.color || '#999')
             .attr("stroke-width", d => EDGE_STYLES[d.type]?.strokeWidth || 1.5)
             .attr("stroke-dasharray", d => EDGE_STYLES[d.type]?.dash)
             .attr('marker-end', d => `url(#arrow-${d.type})`);
+        
+        const edgeLabels = g.append("g")
+            .selectAll(".edge-label")
+            .data(mutableEdges.filter(d => d.label))
+            .join("text")
+            .attr("class", "edge-label")
+            .text(d => d.label)
+            .attr("font-size", "10px")
+            .attr("fill", "#cbd5e1")
+            .attr("text-anchor", "middle")
+            .attr("paint-order", "stroke")
+            .attr("stroke", "#1e293b")
+            .attr("stroke-width", 2)
+            .attr("stroke-linejoin", "round");
             
         const node = g.append("g")
             .selectAll("g")
-            .data(nodes)
+            .data(mutableNodes)
             .join("g")
             .call(drag(simulation))
             .on('mouseover', (event: MouseEvent, d: any) => {
@@ -182,29 +201,63 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             .attr("stroke", (d: any) => getNodeStatusColor(d))
             .attr("stroke-width", 3);
 
-        node.append("text")
-            .attr("x", (d: any) => d.radius + 6)
-            .attr("y", "0.31em")
-            .text((d: any) => d.label)
+        const nodeText = node.append("text")
             .attr("fill", "#e0e7ff")
-            .attr("font-size", "14px")
+            .attr("font-size", "12px")
+            .attr("text-anchor", "middle")
             .attr("paint-order", "stroke")
             .attr("stroke", "#1e1b4b")
             .attr("stroke-width", 3)
             .attr("stroke-linejoin", "round");
-
+        
+        // Apply text wrapping
+        nodeText.each(function(d: any) {
+            wrapText(d3.select(this), d.label, d.radius * 2 * 0.8);
+        });
 
         simulation.on("tick", () => {
-            link
-                .attr("x1", d => (d.source as any).x)
-                .attr("y1", d => (d.source as any).y)
-                .attr("x2", d => (d.target as any).x)
-                .attr("y2", d => (d.target as any).y);
+            link.each(function(d: any) {
+                const source = d.source as any;
+                const target = d.target as any;
+                
+                const dx = target.x - source.x;
+                const dy = target.y - source.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                if (dist === 0) return;
+
+                const targetRadius = target.radius || 0;
+                
+                const newTargetX = target.x - (dx / dist) * targetRadius;
+                const newTargetY = target.y - (dy / dist) * targetRadius;
+
+                d3.select(this)
+                    .attr("x1", source.x)
+                    .attr("y1", source.y)
+                    .attr("x2", newTargetX)
+                    .attr("y2", newTargetY);
+            });
+
+            edgeLabels.each(function(d: any) {
+                const source = d.source as any;
+                const target = d.target as any;
+                
+                const midX = (source.x + target.x) / 2;
+                const midY = (source.y + target.y) / 2;
+                
+                let angle = Math.atan2(target.y - source.y, target.x - source.x) * (180 / Math.PI);
+                if (angle > 90 || angle < -90) {
+                    angle += 180;
+                }
+
+                d3.select(this)
+                    .attr("transform", `translate(${midX}, ${midY}) rotate(${angle})`);
+            });
 
             node.attr("transform", d => `translate(${(d as any).x},${(d as any).y})`);
         });
 
-        const zoom = d3.zoom().on("zoom", (event) => {
+        const zoom = d3.zoom().on("zoom", (event: any) => {
             g.attr("transform", event.transform);
         });
         svg.call(zoom);
@@ -232,6 +285,39 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                 .on("drag", dragged)
                 .on("end", dragended);
         }
+
+        // Helper for wrapping text inside nodes
+        function wrapText(selection: any, text: string, width: number) {
+            selection.each(function() {
+                const textElement = d3.select(this);
+                const words = text.split(/\s+/).reverse();
+                let word;
+                let line: string[] = [];
+                let lineNumber = 0;
+                const lineHeight = 1.1; // ems
+                const y = textElement.attr("y") || 0;
+                const dy = 0;
+
+                let tspan = textElement.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
+
+                while ((word = words.pop())) {
+                    line.push(word);
+                    tspan.text(line.join(" "));
+                    if ((tspan.node() as SVGTextContentElement).getComputedTextLength() > width) {
+                        line.pop();
+                        tspan.text(line.join(" "));
+                        line = [word];
+                        tspan = textElement.append("tspan").attr("x", 0).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
+                    }
+                }
+                
+                // Center the block of text vertically
+                const tspans = textElement.selectAll('tspan');
+                const numTspans = tspans.size();
+                tspans.attr('y', -( (numTspans - 1) * (lineHeight-0.1) / 2) + 'em');
+            });
+        }
+
 
     }, [data, isMounted]);
 

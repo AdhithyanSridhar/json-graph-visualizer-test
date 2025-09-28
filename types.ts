@@ -14,6 +14,7 @@ export interface Edge extends d3.SimulationLinkDatum<Node> {
   source: string | Node;
   target: string | Node;
   type: 'default' | 'sequence' | 'reference' | 'amendment';
+  label?: string;
 }
 
 export interface GraphData {

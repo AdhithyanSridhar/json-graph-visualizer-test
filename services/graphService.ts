@@ -175,7 +175,7 @@ const createReferenceEdges = (
                 if (typeof seqNum === 'number') {
                     const targetNodeId = maps.sequenceToNodeId.get(type)?.get(seqNum);
                     if (targetNodeId && targetNodeId !== node.id) {
-                        edges.push({ source: node.id, target: targetNodeId, type: 'reference' });
+                        edges.push({ source: node.id, target: targetNodeId, type: 'reference', label: type.replace('Sequence', '') });
                     }
                 }
             }
@@ -187,7 +187,7 @@ const createReferenceEdges = (
                             if (typeof adj.promotionSequence === 'number') {
                                 const targetNodeId = maps.sequenceToNodeId.get('promotion')?.get(adj.promotionSequence);
                                 if (targetNodeId && targetNodeId !== node.id) {
-                                    edges.push({ source: node.id, target: targetNodeId, type: 'reference' });
+                                    edges.push({ source: node.id, target: targetNodeId, type: 'reference', label: 'promo' });
                                 }
                             }
                         }
@@ -201,7 +201,7 @@ const createReferenceEdges = (
             for (const itemId of node.data.itemSequences) {
                 const targetNodeId = maps.idToNodeId.get(itemId);
                 if (targetNodeId && targetNodeId !== node.id) {
-                     edges.push({ source: node.id, target: targetNodeId, type: 'reference' });
+                     edges.push({ source: node.id, target: targetNodeId, type: 'reference', label: 'item' });
                 }
             }
         }
@@ -213,7 +213,7 @@ const createReferenceEdges = (
                 if (!isNaN(seqNum)) {
                     const targetNodeId = maps.sequenceToNodeId.get('product')?.get(seqNum);
                     if (targetNodeId && targetNodeId !== node.id) {
-                        edges.push({ source: node.id, target: targetNodeId, type: 'reference' });
+                        edges.push({ source: node.id, target: targetNodeId, type: 'reference', label: 'product' });
                     }
                 }
             }

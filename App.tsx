@@ -307,11 +307,10 @@ const App: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [theme, setTheme] = useState<Theme>('dark');
-    const [isPanelCollapsed, setIsPanelCollapsed] = useState<boolean>(false);
+    const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
     const graphViewerRef = useRef<GraphViewerRef>(null);
 
     const toggleTheme = () => setTheme(prevTheme => prevTheme === 'dark' ? 'light' : 'dark');
-    const togglePanel = () => setIsPanelCollapsed(prevState => !prevState);
 
     const handleVisualize = useCallback(() => {
         setError(null);
@@ -380,9 +379,11 @@ const App: React.FC = () => {
                 <p className={`${currentTheme.subHeaderText} mt-1`}>Paste your JSON data to see its structure as an interactive graph.</p>
             </header>
 
-            <div className="flex flex-col lg:flex-row flex-grow gap-6">
-                <div className={`relative flex-shrink-0 flex flex-col transition-all duration-300 ease-in-out ${isPanelCollapsed ? 'lg:w-0' : 'lg:w-1/3 xl:w-1/4'}`}>
-                    <div className={`h-full flex-grow flex flex-col rounded-lg border shadow-lg overflow-hidden transition-opacity duration-300 ${currentTheme.panelBg} ${currentTheme.panelBorder} ${isPanelCollapsed ? 'opacity-0' : 'opacity-100'}`}>
+            <div className="flex flex-grow gap-6">
+                <div
+                  className={`relative flex flex-col transition-all duration-300 ease-in-out ${isPanelCollapsed ? 'w-0 lg:w-0 xl:w-0' : 'w-full lg:w-1/3 xl:w-1/4'}`}
+                >
+                  <div className={`flex-grow flex flex-col rounded-lg border shadow-lg transition-opacity duration-300 ${currentTheme.panelBg} ${currentTheme.panelBorder} ${isPanelCollapsed ? 'opacity-0' : 'opacity-100'}`}>
                         <div className="p-4 flex flex-col flex-grow">
                             <label htmlFor="json-input" className={`block text-sm font-medium mb-2 ${currentTheme.inputLabel}`}>JSON Input</label>
                             <textarea
@@ -411,10 +412,10 @@ const App: React.FC = () => {
                             )}
                         </div>
                     </div>
-                     <PanelToggleButton isCollapsed={isPanelCollapsed} togglePanel={togglePanel} theme={theme} />
+                    <PanelToggleButton isCollapsed={isPanelCollapsed} onToggle={() => setIsPanelCollapsed(!isPanelCollapsed)} theme={theme} />
                 </div>
 
-                <main className="flex-grow min-h-[400px] lg:min-h-0 relative">
+                <main className={`flex-grow min-h-[600px] lg:min-h-0 relative transition-all duration-300 ease-in-out`}>
                      { !isLoading && !graphData && !error && (
                         <div className={`w-full h-full rounded-lg border-2 border-dashed flex flex-col items-center justify-center p-8 text-center ${currentTheme.panelBg} ${currentTheme.panelBorder}`}>
                             <h2 className="text-xl font-semibold text-gray-400">Graph will be rendered here</h2>

@@ -4,11 +4,11 @@ type Theme = 'light' | 'dark';
 
 interface PanelToggleButtonProps {
   isCollapsed: boolean;
-  togglePanel: () => void;
+  onToggle: () => void;
   theme: Theme;
 }
 
-const PanelToggleButton: React.FC<PanelToggleButtonProps> = ({ isCollapsed, togglePanel, theme }) => {
+const PanelToggleButton: React.FC<PanelToggleButtonProps> = ({ isCollapsed, onToggle, theme }) => {
   const themeClasses = {
     light: {
       bg: 'bg-white hover:bg-gray-100',
@@ -19,27 +19,22 @@ const PanelToggleButton: React.FC<PanelToggleButtonProps> = ({ isCollapsed, togg
       bg: 'bg-gray-800 hover:bg-gray-700',
       border: 'border-gray-600',
       icon: 'text-gray-300',
-    },
+    }
   };
   const currentTheme = themeClasses[theme];
 
   return (
-    <button
-      onClick={togglePanel}
-      className={`absolute top-1/2 -mt-5 z-20 hidden lg:flex items-center justify-center w-6 h-10 border rounded-r-lg cursor-pointer transition-all duration-300 ease-in-out ${currentTheme.bg} ${currentTheme.border}`}
-      style={{ left: '100%' }}
-      aria-label={isCollapsed ? 'Show JSON Panel' : 'Hide JSON Panel'}
-    >
-      <svg
-        className={`w-4 h-4 transition-transform duration-300 ${currentTheme.icon} ${isCollapsed ? 'rotate-180' : ''}`}
-        fill="none"
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-        xmlns="http://www.w3.org/2000/svg"
+    <div className="absolute top-1/2 -right-4 z-20 -translate-y-1/2">
+      <button
+        onClick={onToggle}
+        className={`w-8 h-16 rounded-r-lg border-t border-r border-b shadow-md flex items-center justify-center transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 ${currentTheme.bg} ${currentTheme.border}`}
+        aria-label={isCollapsed ? 'Expand panel' : 'Collapse panel'}
       >
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7"></path>
-      </svg>
-    </button>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`h-6 w-6 transition-transform duration-300 ${isCollapsed ? 'rotate-180' : ''} ${currentTheme.icon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+    </div>
   );
 };
 

@@ -340,7 +340,7 @@ const App: React.FC = () => {
             <div className="flex flex-col lg:flex-row flex-grow gap-6">
                 <div className="lg:w-1/3 xl:w-1/4 flex flex-col">
                     <div className="flex-grow flex flex-col bg-gray-800 rounded-lg border border-gray-700 shadow-lg">
-                        <div className="p-4 border-b border-gray-700 flex flex-col flex-grow">
+                        <div className="p-4 flex flex-col flex-grow">
                             <label htmlFor="json-input" className="block text-sm font-medium text-gray-300 mb-2">JSON Input</label>
                             <textarea
                                 id="json-input"
@@ -351,7 +351,7 @@ const App: React.FC = () => {
                                 aria-label="JSON Input Area"
                             />
                         </div>
-                        <div className="p-4">
+                        <div className="p-4 border-t border-gray-700">
                             <button
                                 onClick={handleVisualize}
                                 disabled={isLoading}

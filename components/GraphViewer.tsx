@@ -97,12 +97,10 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
 
         const { nodes, edges } = data;
         
-        // Ensure data is mutable for d3 simulation
         const mutableNodes = nodes.map(n => ({...n}));
         const mutableEdges = edges.map(e => ({...e}));
 
 
-        // Add radius to nodes based on depth for sizing
         mutableNodes.forEach((node: any) => {
             node.radius = Math.max(45 - (node.depth || 0) * 5, 15);
         });
@@ -120,7 +118,7 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             defs.append('marker')
                 .attr('id', `arrow-${type}`)
                 .attr('viewBox', '0 -5 10 10')
-                .attr('refX', 10) // Point of the arrow which will sit on the node's edge
+                .attr('refX', 10)
                 .attr('refY', 0)
                 .attr('markerWidth', 6)
                 .attr('markerHeight', 6)
@@ -131,10 +129,10 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
         });
         
         const simulation = d3.forceSimulation(mutableNodes)
-            .force("link", d3.forceLink(mutableEdges).id((d: any) => d.id).distance(200).strength(0.5))
-            .force("charge", d3.forceManyBody().strength(-1500))
+            .force("link", d3.forceLink(mutableEdges).id((d: any) => d.id).distance(350).strength(0.5))
+            .force("charge", d3.forceManyBody().strength(-4000))
             .force("center", d3.forceCenter(width / 2, height / 2))
-            .force("collision", d3.forceCollide().radius((d: any) => d.radius + 15));
+            .force("collision", d3.forceCollide().radius((d: any) => d.radius + 30));
 
 
         const link = g.append("g")
@@ -152,7 +150,7 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             .data(mutableEdges.filter(d => d.label))
             .join("text")
             .attr("class", "edge-label")
-            .attr("dy", -5) // Offset from the line
+            .attr("dy", -5)
             .text(d => d.label)
             .attr("font-size", "9px")
             .attr("fill", "#cbd5e1")
@@ -166,30 +164,52 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             .selectAll("g")
             .data(mutableNodes)
             .join("g")
-            .call(drag(simulation))
-            .on('mouseover', (event: MouseEvent, d: any) => {
-                const rect = svgRef.current?.getBoundingClientRect();
-                if (!rect) return;
-                const content = d.data !== undefined ? JSON.stringify(d.data, null, 2) : d.label;
-                setTooltip({
-                    visible: true,
-                    content,
-                    x: event.clientX - rect.left,
-                    y: event.clientY - rect.top,
-                });
-            })
-            .on('mousemove', (event: MouseEvent) => {
-                const rect = svgRef.current?.getBoundingClientRect();
-                if (!rect) return;
-                setTooltip(prev => ({
-                    ...prev,
-                    x: event.clientX - rect.left,
-                    y: event.clientY - rect.top,
-                }));
-            })
-            .on('mouseout', () => {
-                setTooltip(prev => ({ ...prev, visible: false }));
+            .call(drag(simulation));
+        
+        // Highlighting logic
+        const linkedByIndex: Record<string, boolean> = {};
+        mutableEdges.forEach(d => {
+            const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+            const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+            linkedByIndex[`${sourceId},${targetId}`] = true;
+        });
+
+        function areNodesConnected(a: NodeType, b: NodeType) {
+            return linkedByIndex[`${a.id},${b.id}`] || linkedByIndex[`${b.id},${a.id}`] || a.id === b.id;
+        }
+
+        node.on('mouseover', (event: MouseEvent, d: any) => {
+            const rect = svgRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const content = d.data !== undefined ? JSON.stringify(d.data, null, 2) : d.label;
+            setTooltip({
+                visible: true,
+                content,
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top,
             });
+
+            // Highlight connected nodes
+            node.style('opacity', (o: any) => areNodesConnected(d, o) ? 1 : 0.2);
+            link.style('opacity', (o: any) => (o.source.id === d.id || o.target.id === d.id) ? 1 : 0.2);
+            edgeLabels.style('opacity', (o: any) => (o.source.id === d.id || o.target.id === d.id) ? 1 : 0.2);
+        })
+        .on('mousemove', (event: MouseEvent) => {
+            const rect = svgRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            setTooltip(prev => ({
+                ...prev,
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top,
+            }));
+        })
+        .on('mouseout', () => {
+            setTooltip(prev => ({ ...prev, visible: false }));
+            // Reset opacity
+            node.style('opacity', 1);
+            link.style('opacity', 1);
+            edgeLabels.style('opacity', 1);
+        });
 
         const getNodeStatusColor = (d: NodeType) => {
             if (!d.data || !d.data.status) return 'none';
@@ -211,7 +231,6 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             .attr("stroke-width", 3)
             .attr("stroke-linejoin", "round");
         
-        // Apply text wrapping
         nodeText.each(function(d: any) {
             wrapText(d3.select(this), d.label, d.radius * 2 * 0.8);
         });
@@ -227,7 +246,6 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                 
                 if (dist === 0) return;
 
-                // Shorten the line to the edge of the circle
                 const targetRadius = target.radius || 0;
                 const newTargetX = target.x - (dx / dist) * targetRadius;
                 const newTargetY = target.y - (dy / dist) * targetRadius;
@@ -246,7 +264,6 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                 const midX = (source.x + target.x) / 2;
                 const midY = (source.y + target.y) / 2;
                 
-                // Keep text upright
                 let angle = Math.atan2(target.y - source.y, target.x - source.x) * (180 / Math.PI);
                 if (angle > 90 || angle < -90) {
                     angle += 180;
@@ -288,7 +305,6 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                 .on("end", dragended);
         }
 
-        // Helper for wrapping text inside nodes
         function wrapText(selection: any, text: string, width: number) {
             selection.each(function() {
                 const textElement = d3.select(this);
@@ -313,16 +329,14 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
                     }
                 }
                 
-                // Center the block of text vertically
                 const tspans = textElement.selectAll('tspan');
                 const numTspans = tspans.size();
-                const verticalOffset = -((numTspans - 1) * (lineHeight * 12 * 0.5)) / (12 * 0.5); // Heuristic adjustment
+                const verticalOffset = -((numTspans - 1) * lineHeight * 12 * 0.5) / 2;
                 
                 textElement.attr('transform', `translate(0, ${verticalOffset})`)
 
             });
         }
-
 
     }, [data, isMounted]);
 
@@ -332,7 +346,7 @@ const GraphViewer: React.FC<GraphViewerProps> = ({ data }) => {
             <Legend/>
             {tooltip.visible && (
                 <div
-                    className="absolute p-2 text-sm bg-gray-900/90 text-gray-200 border border-gray-600 rounded-md shadow-lg pointer-events-none max-w-sm max-h-80 overflow-auto backdrop-blur-sm"
+                    className="absolute p-2 text-sm bg-gray-900/90 text-gray-200 border border-gray-600 rounded-md shadow-lg pointer-events-none max-w-sm max-h-80 overflow-auto backdrop-blur-sm transition-opacity"
                     style={{ top: tooltip.y + 10, left: tooltip.x + 10 }}
                     role="tooltip"
                 >
